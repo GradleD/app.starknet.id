@@ -1,38 +1,32 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import homeStyles from "../styles/Home.module.css";
 import { useAccount, useSendTransaction } from "@starknet-react/core";
-import { useEffect } from "react";
 import { useRouter } from "next/router";
 import ErrorScreen from "../components/UI/screens/errorScreen";
-import { Screen } from "./discord";
-import { NextPage } from "next";
-import { posthog } from "posthog-js";
-import { Call } from "starknet";
 import VerifyFirstStep from "../components/verify/verifyFirstStep";
 import identityChangeCalls from "../utils/callData/identityChangeCalls";
 import { useNotificationManager } from "../hooks/useNotificationManager";
 import { NotificationType, TransactionType } from "../utils/constants";
 import TxConfirmationModal from "../components/UI/txConfirmationModal";
 
-const Twitter: NextPage = () => {
+const Twitter = () => {
   const router = useRouter();
   const [isConnected, setIsConnected] = useState<boolean>(true);
   const routerCode: string = router.query.code as string;
-  const [signRequestData, setSignRequestData] = useState<
-    SignRequestData | ErrorRequestData
-  >();
+  const [signRequestData, setSignRequestData] = useState<any>();
   const { addTransaction } = useNotificationManager();
   const [isTxModalOpen, setIsTxModalOpen] = useState(false);
 
   // Access localStorage
   const [tokenId, setTokenId] = useState<string>("");
-  const [calls, setCalls] = useState<Call>({} as Call);
+  const [calls, setCalls] = useState<any>(null); // Use any or a specific type for calls
 
   useEffect(() => {
-    if (!tokenId) {
-      setTokenId(window.sessionStorage.getItem("tokenId") ?? "");
+    const storedTokenId = window.sessionStorage.getItem("tokenId");
+    if (storedTokenId) {
+      setTokenId(storedTokenId);
     }
-  }, [tokenId]);
+  }, []);
 
   useEffect(() => {
     if (!signRequestData) return;
@@ -41,35 +35,26 @@ const Twitter: NextPage = () => {
       return;
     }
 
-    setCalls(
-      identityChangeCalls.writeVerifierData(
-        process.env.NEXT_PUBLIC_VERIFIER_CONTRACT as string,
-        tokenId,
-        (signRequestData as SignRequestData).timestamp,
-        "twitter",
-        (signRequestData as SignRequestData).user_id,
-        [
-          (signRequestData as SignRequestData).sign0,
-          (signRequestData as SignRequestData).sign1,
-        ]
-      )
+    const newCalls = identityChangeCalls.writeVerifierData(
+      process.env.NEXT_PUBLIC_VERIFIER_CONTRACT as string,
+      tokenId,
+      signRequestData.timestamp,
+      "twitter",
+      signRequestData.user_id,
+      [signRequestData.sign0, signRequestData.sign1]
     );
+
+    setCalls(newCalls);
   }, [signRequestData, tokenId]);
 
-  // ["", "0x74776974746572", "0", [null, null]];
-
-  //Manage Connection
+  // Manage Connection
   const { account } = useAccount();
 
   useEffect(() => {
-    if (!account) {
-      setIsConnected(false);
-    } else {
-      setIsConnected(true);
-    }
+    setIsConnected(!!account);
   }, [account]);
 
-  //Set twitter code
+  // Set twitter code
   const [code, setCode] = useState<string>("");
   useEffect(() => {
     setCode(routerCode);
@@ -92,20 +77,23 @@ const Twitter: NextPage = () => {
       .then((data) => setSignRequestData(data));
   }, [code, tokenId]);
 
-  //Contract
+  // Contract
   const {
     data: twitterVerificationData,
     sendAsync: execute,
     error: twitterVerificationError,
-  } = useSendTransaction({ calls: [calls as Call] });
+  } = useSendTransaction({ calls: calls ? [calls] : [] });
 
   function verifyTwitter() {
-    execute();
+    if (calls) {
+      execute();
+    }
   }
 
+  // Transaction Confirmation Handling
   useEffect(() => {
     if (!twitterVerificationData?.transaction_hash) return;
-    posthog?.capture("twitterVerificationTx");
+
     addTransaction({
       timestamp: Date.now(),
       subtext: `Twitter verification on Starknet ID #${tokenId}`,
@@ -116,12 +104,12 @@ const Twitter: NextPage = () => {
         status: "pending",
       },
     });
+    
     setIsTxModalOpen(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [twitterVerificationData?.transaction_hash]); // We want this to run only when the tx is sent
+  }, [twitterVerificationData?.transaction_hash]);
 
-  //Screen management
-  const [screen, setScreen] = useState<Screen>("verifyTwitter");
+  // Screen management
+  const [screen, setScreen] = useState<string>("verifyTwitter");
 
   // Error Management
   useEffect(() => {
@@ -130,7 +118,7 @@ const Twitter: NextPage = () => {
     }
   }, [twitterVerificationError, signRequestData]);
 
-  const errorScreen = isConnected && screen === "error";
+  const errorScreenVisible = isConnected && screen === "error";
 
   const closeModal = () => {
     setIsTxModalOpen(false);
@@ -142,21 +130,20 @@ const Twitter: NextPage = () => {
       <div className={homeStyles.screen}>
         <div className={homeStyles.wrapperScreen}>
           <div className={homeStyles.container}>
-            {screen === "verifyTwitter" &&
-              (!isConnected ? (
-                <h1 className="sm:text-5xl text-5xl">
-                  You need to connect anon
-                </h1>
+            {screen === "verifyTwitter" && (
+              !isConnected ? (
+                <h1 className="sm:text-5xl text-5xl">You need to connect anon</h1>
               ) : (
                 <VerifyFirstStep
                   onClick={verifyTwitter}
-                  disabled={Boolean(!calls)}
+                  disabled={!calls}
                   buttonLabel="Verify my Twitter"
-                  title="It's time to verify your twitter on chain !"
+                  title="It's time to verify your Twitter on chain!"
                   subtitle="Safeguard your account with our network verification page"
                 />
-              ))}
-            {errorScreen && (
+              )
+            )}
+            {errorScreenVisible && (
               <ErrorScreen
                 onClick={() => router.push(`/identities/${tokenId}`)}
                 buttonText="Retry to verify"
@@ -169,7 +156,7 @@ const Twitter: NextPage = () => {
         txHash={twitterVerificationData?.transaction_hash}
         isTxModalOpen={isTxModalOpen}
         closeModal={closeModal}
-        title="Your Twitter verification is ongoing !"
+        title="Your Twitter verification is ongoing!"
       />
     </>
   );
