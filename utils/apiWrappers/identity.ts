@@ -167,10 +167,8 @@ export class Identity {
   }
 
   async getPfpFromVerifierData(): Promise<string> {
-    // const identiconsUrl = `${
-    //   process.env.NEXT_PUBLIC_STARKNET_ID
-    // }/api/identicons/${Number(this.id)}`;
-    const identiconsUrl = `https://identicon.starknet.id/${Number(this.id)}`;
+    
+    const identiconsUrl = `${process.env.NEXT_PUBLIC_STARKNET_ID}/identicon/${Number(this.id)}`;
 
     // Get NFT contract address from verifier_data
     const contractAddress = this.getVerifierData(
