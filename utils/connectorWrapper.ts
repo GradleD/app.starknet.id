@@ -36,7 +36,18 @@ export const sortConnectors = (connectors: Connector[]) => {
     else notAvailable.push(connector);
   });
 
-  return available.concat(notAvailable);
+ // Specifically move OKX and Bitget to the last position if they are not installed
+  const specialWallets = notAvailable.filter(connector => 
+    connector.options.id === 'okxwallet' || connector.options.id === 'bitkeep'
+  );
+
+  // Filter out OKX and Bitget from the rest of the non-available wallets
+  const otherNotAvailable = notAvailable.filter(connector => 
+    connector.options.id !== 'okxwallet' && connector.options.id !== 'bitkeep'
+  );
+
+  // Concatenate available wallets, other non-available wallets, and then OKX & Bitget
+  return [...available, ...otherNotAvailable, ...specialWallets];
 };
 
 export const getConnectorIcon = (id: string) => {
